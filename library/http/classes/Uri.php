@@ -24,6 +24,12 @@ use \Psr\Http\Message\UriInterface as UriInterface;
  */
 class Uri implements UriInterface
 {
+    public $uri;
+
+    // inits $uri to input string
+    function __construct($uri){
+        $this->uri = $uri;
+    }
     
     /**
      * Retrieve the scheme component of the URI.
@@ -41,7 +47,8 @@ class Uri implements UriInterface
      */
     public function getScheme()
     {
-
+        $scheme = parse_url($this->uri, PHP_URL_SCHEME);
+        return ($scheme) ? strtolower($scheme) : '';
     }
 
     /**
@@ -64,8 +71,27 @@ class Uri implements UriInterface
      */
     public function getAuthority()
     {
+        // Parse URL
+        $user_info = $this->getUserInfo();
+        $host = $this->getHost();
+        $port = $this->getPort();
 
-    }
+        $authority = "";
+
+        // Build authority string
+        // add user and pass if available
+        if($user_info){
+            $authority .= $user_info . '@';
+        }
+        // always include host
+        $authority .= $host;
+        // add port if specified
+        if($port){
+            $authority .= ':' . $port;
+        }
+
+        return $authority;
+    } 
 
     /**
      * Retrieve the user information component of the URI.
@@ -84,7 +110,19 @@ class Uri implements UriInterface
      */
     public function getUserInfo()
     {
+        $user = parse_url($this->uri, PHP_URL_USER);
+        $pass = parse_url($this->uri, PHP_URL_PASS);
 
+        $userInfo = "";
+
+        if($user){
+            $userInfo .= $user;
+        }
+        if($pass){
+            $userInfo .= ':'.$pass;
+        }
+
+        return $userInfo;
     }
 
     /**
@@ -100,7 +138,8 @@ class Uri implements UriInterface
      */
     public function getHost()
     {
-
+        $host = parse_url($this->uri, PHP_URL_HOST);
+        return ($host) ? strtolower($host) : '';
     }
 
     /**
@@ -120,7 +159,14 @@ class Uri implements UriInterface
      */
     public function getPort()
     {
+        $result = null;
+        $port = parse_url($this->uri, PHP_URL_PORT);
+        
+        if($port){
+            $result = (int) $port;
+        }
 
+        return $result;
     }
 
     /**
@@ -369,7 +415,7 @@ class Uri implements UriInterface
      */
     public function __toString()
     {
-        
+
     }
 
 }

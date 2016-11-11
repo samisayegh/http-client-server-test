@@ -12,6 +12,18 @@ use \Psr\Http\Message\StreamInterface as StreamInterface;
  */
 class Stream implements StreamInterface
 {
+
+    public $body; //stored as json
+
+    // checks body is a string, and encodes into json
+    function __construct($body){
+        if(!is_string($body)){
+            throw new \InvalidArgumentException("Body must be of type string");
+        }
+
+        $this->body = json_encode($body, JSON_PRETTY_PRINT);
+    }
+
     /**
      * Reads all data from the stream into a string, from the beginning to end.
      *
@@ -28,7 +40,7 @@ class Stream implements StreamInterface
      */
     public function __toString()
     {
-
+        return json_decode($this->body);
     }
 
     /**

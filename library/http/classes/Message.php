@@ -2,6 +2,7 @@
 
 namespace pillr\library\http;
 
+use \pillr\library\http\Stream as Stream;
 use Psr\Http\Message\MessageInterface as MessageInterface;
 use Psr\Http\Message\StreamInterface as StreamInterface;
 /**
@@ -18,6 +19,36 @@ use Psr\Http\Message\StreamInterface as StreamInterface;
  */
 class Message implements MessageInterface
 {
+    // array containing req/res details
+    protected $http;
+
+    // constructor for request class
+    protected function Request($protocol, $method, $uri, $headers, $body){
+        $this->http = array(
+            'protocol' => $protocol,
+            'method' => $method,
+            'uri' => $uri, //uri object
+            'headers' => $headers, //associative array
+            'body' => new Stream($body) // stream object
+            );
+        
+        // check validity of passed arguments
+        $this->checkArguments($this->http);
+    }
+
+    // constructor for response class
+    protected function Response($protocol, $status_code, $reason, $headers, $body){
+        $this->http = array(
+            'protocol' => $protocol,
+            'status_code' => $status_code,
+            'reason' => $reason,
+            'headers' => $headers, //associative array
+            'body' => new Stream($body) //stream object
+            );
+        
+        // check validity of passed arguments
+        $this->checkArguments($this->http);
+    }
     /**
      * Retrieves the HTTP protocol version as a string.
      *
@@ -27,7 +58,7 @@ class Message implements MessageInterface
      */
     public function getProtocolVersion()
     {
-
+     return $this->http['protocol'];
     }
 
     /**
@@ -45,7 +76,11 @@ class Message implements MessageInterface
      */
     public function withProtocolVersion($version)
     {
+        $this->isValid($version,'protocol');
 
+        $that = clone $this;
+        $that->$http['protocol'] = $version;
+        return $that;
     }
 
     /**
@@ -75,7 +110,7 @@ class Message implements MessageInterface
      */
     public function getHeaders()
     {
-
+        return $this->http['headers'];
     }
 
     /**
@@ -88,7 +123,8 @@ class Message implements MessageInterface
      */
     public function hasHeader($name)
     {
-
+        $arr = $this->getHeader($name);
+        return (count($arr) != 0)? true : false;
     }
 
     /**
@@ -107,7 +143,17 @@ class Message implements MessageInterface
      */
     public function getHeader($name)
     {
+        $arr = array();
+        $key = $this->getHeaderKey($name);
 
+        if($key){
+            // push all strings at the header key to array
+            foreach ($this->http['headers'][$key] as $value){
+                array_push($arr, $value);
+            }
+        }
+
+        return $arr;
     }
 
     /**
@@ -131,7 +177,9 @@ class Message implements MessageInterface
      */
     public function getHeaderLine($name)
     {
+        $headers = $this->getHeader($name);
 
+        return implode(',', $headers);
     }
 
     /**
@@ -151,7 +199,23 @@ class Message implements MessageInterface
      */
     public function withHeader($name, $value)
     {
+        $this->isValid($name,'header_name');
 
+        $that = clone $this;
+        // $val of a header key must be an array
+        $val = (gettype($value) == 'array') ? $value : array($value);
+        $key = $that->getHeaderKey($name);
+
+        if($key){
+            // key exists, so replace value
+            $that->http['headers'][$key] = $val;
+        }
+        else{
+            // create key if it did not exist
+            $that->http['headers'][$name] = $val;
+        }
+
+        return $that;
     }
 
     /**
@@ -173,7 +237,22 @@ class Message implements MessageInterface
      */
     public function withAddedHeader($name, $value)
     {
+        $this->isValid($name,'header_name');
 
+        $that = clone $this;
+        $val = (gettype($value) == 'array') ? $value : array($value);
+        $key = $that->getHeaderKey($name);
+
+        if($key){
+            // key exists, push to array
+            array_push($that->http['headers'][$key], $val);
+        }
+        else{
+            // create key if it did not exist, and save value in array
+            $that->http['headers'][$name] = array($val);
+        }
+
+        return $that;
     }
 
     /**
@@ -190,7 +269,14 @@ class Message implements MessageInterface
      */
     public function withoutHeader($name)
     {
+        $that = clone $this;
+        $key = $that->getHeaderKey($name);
 
+        if($key){
+            unset($that->http['headers'][$key]);
+        }
+
+        return $that;
     }
 
     /**
@@ -200,7 +286,7 @@ class Message implements MessageInterface
      */
     public function getBody()
     {
-
+        return $this->http['body'];
     }
 
     /**
@@ -218,6 +304,119 @@ class Message implements MessageInterface
      */
     public function withBody(StreamInterface $body)
     {
+        $this->isValid($body,'body');
 
+        $that = clone $this;
+        $that->$http['body'] = $body;
+        return $that;
     }
+
+    /**
+    * Returns key of the queried header with the case originally stored in http array
+    * or null if the key is not found.
+    *
+    * @param string $header
+    *
+    * @return modified clone of $this
+    */
+    private function getHeaderKey($header){
+        $h = strtolower($header);
+
+        foreach ($this->http['headers'] as $key => $value) {
+            if(strtolower($key) == $h){
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    // VALIDATION
+    // checks constructor arguments
+    protected function checkArguments($arguments){
+        foreach ($arguments as $key => $val) {
+            // headers is an exception since it is an array
+            if($key == 'headers'){
+                $this->checkHeaderNames($val);
+            }
+            else{
+                $this->isValid($val,$key);
+            }
+        }
+    }
+    // checks if header names (keys) are valid
+    private function checkHeaderNames($headers){
+        foreach ($headers as $key => $value) {
+            $this->isValid($key,'header_name');
+        }
+    }
+
+    // validation logic
+    protected function isValid($val, $field){
+        switch ($field) {
+            case 'protocol':
+                $protocol = floatval($val);
+                if($protocol < 1 || $protocol > 2) {
+                    throw new \InvalidArgumentException("protocol version ${val} is invalid");
+                }
+                break;
+            case 'method':
+                $method = strtoupper($val);
+                if(!in_array($method, $this->methods)){
+                    throw new \InvalidArgumentException("http method ${val} is invalid");
+                }
+                break;
+            case 'status_code':
+                $code = intval($val);
+                if($code < 100 || $code > 599){
+                    throw new \InvalidArgumentException("status code ${val} is invalid");
+                }
+                break;
+            case 'header_name':
+                $header = strtolower($val);
+                $headersArray = array_map('strtolower', $this->headers);
+                // case insensitive look-up
+                if(!in_array($header, $headersArray)){
+                    throw new \InvalidArgumentException("header name ${val} is invalid");
+                }
+                break;
+            case 'body':
+                if(!is_a($val, '\pillr\library\http\Stream')){
+                    throw new \InvalidArgumentException("body is not of type Stream");
+                }
+                break;
+            
+            default:
+                break;
+        }
+    }
+
+    // RESOURCES
+    private $methods = array(
+    'GET','HEAD','POST',
+    'PUT','DELETE','CONNECT',
+    'OPTIONS','TRACE');
+
+    private $headers = array(
+        'Accept','Accept-Charset','Accept-Encoding',
+        'Accept-Language','Accept-Ranges','Access-Control-Allow-Credentials',
+        'Access-Control-Allow-Headers','Access-Control-Allow-Methods','Access-Control-Allow-Origin',
+        'Access-Control-Expose-Headers','Access-Control-Max-Age','Access-Control-Request-Headers',
+        'Access-Control-Request-Method','Age','Cache-Control',
+        'Connection','Content-Disposition','Content-Encoding',
+        'Content-Language','Content-Length','Content-Location',
+        'Content-Security-Policy','Content-Type','Cookie',
+        'Cookie2','DNT','Date',
+        'ETag','Expires','From',
+        'Host','If-Match','If-Modified-Since',
+        'If-None-Match','If-Range','If-Unmodified-Since',
+        'Keep-Alive','Last-Modified','Location',
+        'Origin','Pragma','Referer',
+        'Referrer-Policy','Retry-After','Server',
+        'Set-Cookie','Set-Cookie2','Strict-Transport-Security',
+        'TE','Tk','Trailer',
+        'Transfer-Encoding','User-Agent','Vary',
+        'Via','Warning','X-Content-Type-Options',
+        'X-DNS-Prefetch-Control','X-Frame-Options'
+        );
 }

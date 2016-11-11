@@ -29,7 +29,10 @@ use \pillr\library\http\Message         as  Message;
 class Request extends Message implements RequestInterface
 {
 
-
+    function __construct($protocol, $method, $uri, $headers, $body){
+        $this->Request($protocol, $method, $uri, $headers, $body);
+    }
+    
     /**
      * Retrieves the message's request target.
      *
@@ -48,7 +51,8 @@ class Request extends Message implements RequestInterface
      */
     public function getRequestTarget()
     {
-
+        $uri = $this->getUri()->uri;
+        return ($uri)? $uri : '/';
     }
 
     /**
@@ -70,7 +74,9 @@ class Request extends Message implements RequestInterface
      */
     public function withRequestTarget($requestTarget)
     {
-
+        $that = clone $this;
+        $that->http['uri']->uri = $requestTarget;
+        return  $that;
     }
 
     /**
@@ -80,7 +86,7 @@ class Request extends Message implements RequestInterface
      */
     public function getMethod()
     {
-
+        return $this->http['method'];
     }
 
     /**
@@ -114,7 +120,7 @@ class Request extends Message implements RequestInterface
      */
     public function getUri()
     {
-
+        return $this->http['uri'];
     }
 
     /**
